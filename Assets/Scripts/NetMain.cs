@@ -27,11 +27,11 @@ public class NetMain : MonoBehaviour
         myHuman = obj.AddComponent<CtrlHuman>();
         myHuman.desc = NetManager.GetDesc();
 
-        obj.GetComponent<MeshRenderer>().material.color = new Color(
-            UnityEngine.Random.Range(0, 255),
-            UnityEngine.Random.Range(0, 255),
-            UnityEngine.Random.Range(0, 255)
-            );
+        //obj.GetComponent<MeshRenderer>().materials[0].color = new Color(
+        //    UnityEngine.Random.Range(0, 255),
+        //    UnityEngine.Random.Range(0, 255),
+        //    UnityEngine.Random.Range(0, 255)
+        //    );
 
         Vector3 pos = myHuman.transform.position;
         Vector3 eu1 = myHuman.transform.eulerAngles;
@@ -89,6 +89,6 @@ public class NetMain : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        NetManager.Update();
     }
 }

@@ -143,6 +143,8 @@ public static class NetManager
         var msgName = split[0];
         var msgArgs = split[1];
 
+        Debug.Log($"NetManager -> Dequeue -> {msgName} -> {msgArgs}");
+
         if (listeners.ContainsKey(msgName))
         {
             listeners[msgName](msgArgs);

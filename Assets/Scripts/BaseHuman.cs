@@ -34,7 +34,6 @@ public class BaseHuman : MonoBehaviour
         transform.position = Vector3.MoveTowards(pos, targetPosition, speed * Time.deltaTime);
         transform.LookAt(targetPosition);
 
-
         var distance = Vector3.Distance(pos, targetPosition);
 
         if (distance < 1.0f)
