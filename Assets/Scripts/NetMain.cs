@@ -39,6 +39,9 @@ public class NetMain : MonoBehaviour
 
         // protocol type: <Command>|<RemoteIPEndPoint>,<Location.x>,<Location.y>,<Location.z>,<Rotation.y>
         sendStr = $"{sendStr}{myHuman.desc},{pos.x},{pos.y},{pos.z},{eu1.y}";
+
+        DebugUI.Instance.Log(sendStr);
+
         NetManager.Send(sendStr);
     }
 
