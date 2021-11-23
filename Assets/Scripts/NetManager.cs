@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -58,7 +59,7 @@ public static class NetManager
     {
         if (socket != null && socket.Connected)
         {
-            socket.Disconnect(false);
+            socket.Close();
         }
     }
 
@@ -139,6 +140,11 @@ public static class NetManager
 
         var msgStr = msgQueue.Dequeue();
 
+        if (string.IsNullOrEmpty(msgStr))
+        {
+            return;
+        }
+
         var split = msgStr.Split('|');
         var msgName = split[0];
         var msgArgs = split[1];
@@ -149,5 +155,12 @@ public static class NetManager
         {
             listeners[msgName](msgArgs);
         }
+    }
+
+    public static IEnumerator DelaySend(float seconds, string msg)
+    {
+        yield return new WaitForSeconds(seconds);
+
+        Send(msg);
     }
 }

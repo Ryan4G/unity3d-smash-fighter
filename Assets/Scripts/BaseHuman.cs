@@ -4,15 +4,25 @@ using UnityEngine;
 
 public class BaseHuman : MonoBehaviour
 {
-    public float speed = 1.2f;
+    public float speed = 2.2f;
 
     public string desc = "";
 
     protected bool isMoving = false;
 
+    protected bool isAttacking = false;
+
     private Vector3 targetPosition;
 
     private Animator animator;
+
+    protected float attackTime = float.MinValue;
+
+    protected int hp = 5;
+
+    protected bool isDead = false;
+
+    protected bool isHurt = false;
 
     public void MoveTo(Vector3 pos)
     {
@@ -25,7 +35,7 @@ public class BaseHuman : MonoBehaviour
 
     public void MoveUpdate()
     {
-        if (!isMoving)
+        if (!isMoving || isDead)
         {
             return;
         }
@@ -36,7 +46,9 @@ public class BaseHuman : MonoBehaviour
 
         var distance = Vector3.Distance(pos, targetPosition);
 
-        if (distance < 1.0f)
+        //Debug.Log(distance);
+
+        if (distance < 0.5f)
         {
             isMoving = false;
             animator.SetBool("isMoving", false);
@@ -53,5 +65,47 @@ public class BaseHuman : MonoBehaviour
     protected void Update()
     {
         MoveUpdate();
+        AttackUpdate();
+    }
+
+    public void Attack()
+    {
+        isAttacking = true;
+        attackTime = Time.time;
+        animator.SetBool("isAttacking", true);
+    }
+
+    public void AttackUpdate()
+    {
+        if (!isAttacking || isDead)
+        {
+            return;
+        }
+
+        if (Time.time - attackTime < 1.2f)
+        {
+            return;
+        }
+
+        isAttacking = false;
+
+        animator.SetBool("isAttacking", false);
+    }
+
+    public void Hurt(int damage)
+    {
+        if (isDead)
+        {
+            return;
+        }
+
+        this.hp -= damage;
+
+        //isHurt = true;
+
+        if (this.hp < 0)
+        {
+            isDead = true;
+        }
     }
 }

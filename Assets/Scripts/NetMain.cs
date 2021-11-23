@@ -9,7 +9,7 @@ public class NetMain : MonoBehaviour
 
     public BaseHuman myHuman;
 
-    public Dictionary<string, BaseHuman> otherHumans;
+    public Dictionary<string, BaseHuman> otherHumans = new Dictionary<string, BaseHuman>();
 
     // Start is called before the first frame update
     void Start()
@@ -17,6 +17,11 @@ public class NetMain : MonoBehaviour
         NetManager.AddListener("Enter", OnEnter);
         NetManager.AddListener("Move", OnMove);
         NetManager.AddListener("Leave", OnLeave);
+        NetManager.AddListener("List", OnList);
+        NetManager.AddListener("Attack", OnAttack);
+        NetManager.AddListener("Hurt", OnHurt);
+        NetManager.AddListener("Die", OnDie);
+
         NetManager.Connect("127.0.0.1", 8888);
 
         GameObject obj = Instantiate(humanPrefab);
@@ -34,15 +39,125 @@ public class NetMain : MonoBehaviour
         //    );
 
         Vector3 pos = myHuman.transform.position;
-        Vector3 eu1 = myHuman.transform.eulerAngles;
-        string sendStr = "Enter|";
+        Vector3 eul = myHuman.transform.eulerAngles;
+        string sendStr = "";
 
-        // protocol type: <Command>|<RemoteIPEndPoint>,<Location.x>,<Location.y>,<Location.z>,<Rotation.y>
-        sendStr = $"{sendStr}{myHuman.desc},{pos.x},{pos.y},{pos.z},{eu1.y}";
+        sendStr = ActionProtocols.GetProtocolScript(ActionProtocols.Actions.Enter, new ClientState { 
+            x = pos.x,
+            y = pos.y,
+            z = pos.z,
+            eulY = eul.y
+        });
 
         DebugUI.Instance.Log(sendStr);
 
         NetManager.Send(sendStr);
+
+        sendStr = ActionProtocols.GetProtocolScript(ActionProtocols.Actions.List, null);
+        StartCoroutine(NetManager.DelaySend(1f, sendStr));
+    }
+
+    private void OnDie(string str)
+    {
+        Debug.Log($"OnDie {str}");
+
+        var desc = str;
+
+        if (desc == myHuman.desc)
+        {
+            Debug.Log("Game Over");
+            return;
+        }
+
+        if (!otherHumans.ContainsKey(desc))
+        {
+            return;
+        }
+
+        BaseHuman bh = otherHumans[desc];
+        bh.gameObject.SetActive(false);
+    }
+
+    private void OnHurt(string str)
+    {
+        Debug.Log($"OnHurt {str}");
+
+        var split = str.Split(',');
+
+        var attackDesc = split[0];
+
+        var hurtDesc = split[1];
+
+        int damage = int.Parse(split[2]);
+
+        if (hurtDesc == myHuman.desc)
+        {
+            myHuman.Hurt(damage);
+            return;
+        }
+
+        if (!otherHumans.ContainsKey(hurtDesc))
+        {
+            return;
+        }
+
+        BaseHuman bh = otherHumans[hurtDesc];
+        bh.Hurt(damage);
+    }
+
+    private void OnAttack(string str)
+    {
+        Debug.Log($"OnAttack {str}");
+
+        var split = str.Split(',');
+
+        var desc = split[0];
+
+        float eulY = float.Parse(split[1]);
+
+        if (!otherHumans.ContainsKey(desc))
+        {
+            return;
+        }
+
+        SyncHuman sh = otherHumans[desc] as SyncHuman;
+        sh.SyncAttack(eulY);
+    }
+
+    private void OnList(string str)
+    {
+        Debug.Log($"OnList {str}");
+
+        var splits = str.Split('/');
+        var count = splits.Length;
+
+        foreach(var sp in splits)
+        {
+            string[] split = sp.Split(',');
+            string desc = split[0];
+
+            float x = float.Parse(split[1]);
+            float y = float.Parse(split[2]);
+            float z = float.Parse(split[3]);
+            float euly = float.Parse(split[4]);
+            int hp = int.Parse(split[5]);
+
+            if (desc == myHuman.desc || string.IsNullOrEmpty(desc))
+            {
+                continue;
+            }
+
+            if (!otherHumans.ContainsKey(desc))
+            {
+                GameObject go = Instantiate(humanPrefab);
+                go.transform.position = new Vector3(x, y, z);
+                go.transform.eulerAngles = new Vector3(0, euly, 0);
+
+                BaseHuman h = go.AddComponent<SyncHuman>();
+                h.desc = desc;
+                otherHumans.Add(desc, h);
+            }
+        }
     }
 
     private void OnDestroy()
@@ -53,11 +168,41 @@ public class NetMain : MonoBehaviour
     private void OnLeave(string str)
     {
         Debug.Log($"OnLeave {str}");
+
+        //var split = str.Split(',');
+
+        var desc = str;
+
+        if (!otherHumans.ContainsKey(desc))
+        {
+            return;
+        }
+
+        BaseHuman bh = otherHumans[desc];
+        otherHumans.Remove(desc);
+        Destroy(bh.gameObject);
     }
 
     private void OnMove(string str)
     {
         Debug.Log($"OnMove {str}");
+
+        var split = str.Split(',');
+
+        var desc = split[0];
+
+        float x = float.Parse(split[1]);
+        float y = float.Parse(split[2]);
+        float z = float.Parse(split[3]);
+
+        if (!otherHumans.ContainsKey(desc))
+        {
+            return;
+        }
+
+        BaseHuman bh = otherHumans[desc];
+        Vector3 targetPos = new Vector3(x, y, z);
+        bh.MoveTo(targetPos);
     }
 
     private void OnEnter(string str)
@@ -72,7 +217,7 @@ public class NetMain : MonoBehaviour
         float z = float.Parse(split[3]);
         float euly = float.Parse(split[4]);
 
-        if (desc == myHuman.desc)
+        if (desc == myHuman.desc || string.IsNullOrEmpty(desc))
         {
             return;
         }
@@ -90,5 +235,12 @@ public class NetMain : MonoBehaviour
     void Update()
     {
         NetManager.Update();
+    }
+
+    private IEnumerator DelaySend(int seconds, string msg)
+    {
+        yield return new WaitForSeconds(seconds);
+
+        NetManager.Send(msg);
     }
 }
