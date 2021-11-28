@@ -13,6 +13,8 @@ public static class NetManager
 
     static byte[] readBuff = new byte[1024];
 
+    static int buffCount = 0;
+
     public delegate void MsgListener(string str);
 
     // listening list
@@ -71,7 +73,7 @@ public static class NetManager
             socket.EndConnect(ar);
             Debug.Log("Socket Connect Successful");
 
-            socket.BeginReceive(readBuff, 0, 1024, 0, ReceiveCallback, socket);
+            socket.BeginReceive(readBuff, buffCount, 1024 - buffCount, 0, ReceiveCallback, socket);
         }
         catch (SocketException ex)
         {
@@ -87,11 +89,11 @@ public static class NetManager
 
             var count = socket.EndReceive(ar);
 
-            string recvStr = System.Text.Encoding.UTF8.GetString(readBuff, 0, count);
+            buffCount += count;
 
-            msgQueue.Enqueue(recvStr);
+            OnReceiveData();
 
-            socket.BeginReceive(readBuff, 0, 1024, 0, ReceiveCallback, socket);
+            socket.BeginReceive(readBuff, buffCount, 1024 - buffCount, 0, ReceiveCallback, socket);
         }
         catch (SocketException ex)
         {
@@ -111,7 +113,12 @@ public static class NetManager
             return;
         }
 
-        byte[] sendBytes = System.Text.Encoding.UTF8.GetBytes(sendStr);
+        byte[] bodyBytes = System.Text.Encoding.UTF8.GetBytes(sendStr);
+
+        // add length bytes into package
+        short len = (short)bodyBytes.Length;
+        byte[] lenBytes = BitConverter.GetBytes(len);
+        byte[] sendBytes = lenBytes.Concat(bodyBytes).ToArray();
         socket.BeginSend(sendBytes, 0, sendBytes.Length, 0, SendCallback, socket);
     }
 
@@ -162,5 +169,36 @@ public static class NetManager
         yield return new WaitForSeconds(seconds);
 
         Send(msg);
+    }
+
+    private static void OnReceiveData()
+    {
+        // only length bytes
+        if (buffCount <= 2)
+        {
+            return;
+        }
+
+        short bodyLength = BitConverter.ToInt16(readBuff, 0);
+
+        // package is not completed
+        if (buffCount < 2 + bodyLength)
+        {
+            return;
+        }
+
+        string recvStr = System.Text.Encoding.UTF8.GetString(readBuff, 2, bodyLength);
+
+        msgQueue.Enqueue(recvStr);
+
+        int start = 2 + bodyLength;
+        int count = buffCount - start;
+
+        Array.Copy(readBuff, start, readBuff, 0, count);
+
+        buffCount -= start;
+
+        // work utill return
+        OnReceiveData();
     }
 }

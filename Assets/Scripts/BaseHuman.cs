@@ -24,6 +24,8 @@ public class BaseHuman : MonoBehaviour
 
     protected bool isHurt = false;
 
+    protected TextMesh HealthPoint;
+
     public void MoveTo(Vector3 pos)
     {
         //Debug.Log(pos.ToString());
@@ -59,6 +61,8 @@ public class BaseHuman : MonoBehaviour
     protected void Start()
     {
         animator = GetComponent<Animator>();
+        HealthPoint = this.gameObject.GetComponentInChildren<TextMesh>();
+        HealthPoint.text = $"HP:{hp}";
     }
 
     // Update is called once per frame
@@ -103,9 +107,12 @@ public class BaseHuman : MonoBehaviour
 
         //isHurt = true;
 
-        if (this.hp < 0)
+        HealthPoint.text = $"HP:{hp}";
+
+        if (this.hp <= 0)
         {
             isDead = true;
+            return;
         }
     }
 }
