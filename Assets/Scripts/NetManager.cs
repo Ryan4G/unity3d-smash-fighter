@@ -15,6 +15,8 @@ public static class NetManager
 
     static Queue<ByteArray> writeQueue = new Queue<ByteArray>();
 
+    static bool isClosing = false;
+
     public delegate void MsgListener(string str);
 
     // listening list
@@ -57,11 +59,18 @@ public static class NetManager
         socket.BeginConnect(ip, port, ConnectCallback, socket);
     }
 
-    public static void Disconnect()
+    public static void Close()
     {
-        if (socket != null && socket.Connected)
+        if (writeQueue.Count > 0)
         {
-            socket.Close();
+            isClosing = true;
+        }
+        else
+        {
+            if (socket != null && socket.Connected)
+            {
+                socket.Close();
+            }
         }
     }
 
@@ -115,6 +124,11 @@ public static class NetManager
         }
 
         if (!socket.Connected)
+        {
+            return;
+        }
+
+        if (isClosing)
         {
             return;
         }
@@ -182,6 +196,10 @@ public static class NetManager
             if (ba != null)
             {
                 socket.BeginSend(ba.bytes, ba.readIdx, ba.length, 0, SendCallback, socket);
+            }
+            else if (isClosing)
+            {
+                socket.Close();
             }
 
             Debug.Log($"Socket Send {count} bytes");

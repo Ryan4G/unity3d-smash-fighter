@@ -165,7 +165,7 @@ public class NetMain : MonoBehaviour
 
     private void OnDestroy()
     {
-        NetManager.Disconnect();
+        NetManager.Close();
     }
 
     private void OnLeave(string str)
