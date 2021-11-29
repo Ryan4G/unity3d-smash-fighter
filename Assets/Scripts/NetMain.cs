@@ -54,7 +54,10 @@ public class NetMain : MonoBehaviour
         NetManager.Send(sendStr);
 
         sendStr = ActionProtocols.GetProtocolScript(ActionProtocols.Actions.List, null);
-        StartCoroutine(NetManager.DelaySend(1f, sendStr));
+        //StartCoroutine(NetManager.DelaySend(1f, sendStr));
+
+
+        NetManager.Send(sendStr);
     }
 
     private void OnDie(string str)

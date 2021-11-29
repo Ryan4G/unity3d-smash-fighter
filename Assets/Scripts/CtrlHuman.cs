@@ -90,7 +90,7 @@ public class CtrlHuman : BaseHuman
                 {
                     sendStr = ActionProtocols.GetProtocolScript(ActionProtocols.Actions.Hurt, new ClientState { desc = h.desc });
 
-                    StartCoroutine(NetManager.DelaySend(1f, sendStr));
+                    NetManager.Send(sendStr);
                 }
             }
         }

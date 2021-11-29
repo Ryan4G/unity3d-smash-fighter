@@ -11,9 +11,9 @@ public static class NetManager
 {
     static Socket socket;
 
-    static byte[] readBuff = new byte[1024];
+    static ByteArray readBuff = new ByteArray();
 
-    static int buffCount = 0;
+    static Queue<ByteArray> writeQueue = new Queue<ByteArray>();
 
     public delegate void MsgListener(string str);
 
@@ -73,7 +73,7 @@ public static class NetManager
             socket.EndConnect(ar);
             Debug.Log("Socket Connect Successful");
 
-            socket.BeginReceive(readBuff, buffCount, 1024 - buffCount, 0, ReceiveCallback, socket);
+            socket.BeginReceive(readBuff.bytes, readBuff.writeIdx, readBuff.remain, 0, ReceiveCallback, socket);
         }
         catch (SocketException ex)
         {
@@ -89,11 +89,17 @@ public static class NetManager
 
             var count = socket.EndReceive(ar);
 
-            buffCount += count;
+            readBuff.writeIdx += count;
 
             OnReceiveData();
 
-            socket.BeginReceive(readBuff, buffCount, 1024 - buffCount, 0, ReceiveCallback, socket);
+            if (readBuff.remain < 8)
+            {
+                readBuff.MoveBytes();
+                readBuff.Resize(readBuff.length * 2);
+            }
+
+            socket.BeginReceive(readBuff.bytes, readBuff.writeIdx, readBuff.remain, 0, ReceiveCallback, socket);
         }
         catch (SocketException ex)
         {
@@ -118,8 +124,30 @@ public static class NetManager
         // add length bytes into package
         short len = (short)bodyBytes.Length;
         byte[] lenBytes = BitConverter.GetBytes(len);
+
+        // length bytes default writen with little endian 
+        if (!BitConverter.IsLittleEndian)
+        {
+            lenBytes.Reverse();
+        }
+
         byte[] sendBytes = lenBytes.Concat(bodyBytes).ToArray();
-        socket.BeginSend(sendBytes, 0, sendBytes.Length, 0, SendCallback, socket);
+
+        ByteArray ba = new ByteArray(sendBytes);
+        var count = 0;
+
+        // avoid multi theads problem
+        lock (writeQueue)
+        {
+            writeQueue.Enqueue(ba);
+            count = writeQueue.Count;
+        }
+
+        // if queue only has one package , send it immediately
+        if (count == 1)
+        {
+            socket.BeginSend(ba.bytes, ba.readIdx, ba.length, 0, SendCallback, socket);
+        }
     }
 
     private static void SendCallback(IAsyncResult ar)
@@ -129,6 +157,32 @@ public static class NetManager
             Socket socket = ar.AsyncState as Socket;
 
             var count = socket.EndSend(ar);
+
+            ByteArray ba;
+
+            lock (writeQueue)
+            {
+                ba = writeQueue.Peek();
+            }
+
+            ba.readIdx += count;
+
+            // send package completed
+            if (ba.length == 0)
+            {
+                lock (writeQueue)
+                {
+                    writeQueue.Dequeue();
+
+                    ba = writeQueue.Peek();
+                }
+            }
+
+            // if ba.length != 0 or queue is not empty
+            if (ba != null)
+            {
+                socket.BeginSend(ba.bytes, ba.readIdx, ba.length, 0, SendCallback, socket);
+            }
 
             Debug.Log($"Socket Send {count} bytes");
         }
@@ -164,41 +218,34 @@ public static class NetManager
         }
     }
 
-    public static IEnumerator DelaySend(float seconds, string msg)
-    {
-        yield return new WaitForSeconds(seconds);
-
-        Send(msg);
-    }
-
     private static void OnReceiveData()
     {
         // only length bytes
-        if (buffCount <= 2)
+        if (readBuff.length <= 2)
         {
             return;
         }
 
-        short bodyLength = BitConverter.ToInt16(readBuff, 0);
+        short bodyLength = readBuff.ReadInt16();
 
         // package is not completed
-        if (buffCount < 2 + bodyLength)
+        if (readBuff.length < bodyLength)
         {
+            readBuff.readIdx -= 2;
             return;
         }
 
-        string recvStr = System.Text.Encoding.UTF8.GetString(readBuff, 2, bodyLength);
+        byte[] stringBytes = new byte[bodyLength];
+        readBuff.Read(stringBytes, 0, bodyLength);
+
+        string recvStr = System.Text.Encoding.UTF8.GetString(stringBytes);
 
         msgQueue.Enqueue(recvStr);
 
-        int start = 2 + bodyLength;
-        int count = buffCount - start;
-
-        Array.Copy(readBuff, start, readBuff, 0, count);
-
-        buffCount -= start;
-
-        // work utill return
-        OnReceiveData();
+        if (readBuff.length > 2)
+        {
+            // work utill return
+            OnReceiveData();
+        }
     }
 }
